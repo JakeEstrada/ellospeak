@@ -2,12 +2,19 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 const enginePref = (import.meta.env.VITE_TTS_ENGINE || 'auto').toLowerCase();
 
+// Let themed SFX finish before the spoken word so they don't smear together
+const SPEECH_START_DELAY_MS = 320;
+
 function preferBrowser() {
   return enginePref === 'browser';
 }
 
 function preferOpenAI() {
   return enginePref === 'openai' || enginePref === 'auto';
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function pickVoice() {
@@ -57,22 +64,61 @@ async function fetchSpeechBlob(word) {
   return res.blob();
 }
 
+function stopAudio(audioRef) {
+  if (!audioRef.current) return;
+  try {
+    audioRef.current.pause();
+    const prev = audioRef.current.src;
+    if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev);
+  } catch {
+    // ignore
+  }
+  audioRef.current = null;
+}
+
 function playBlob(blob, audioRef) {
   return new Promise((resolve, reject) => {
     try {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        const prev = audioRef.current.src;
-        if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev);
+      stopAudio(audioRef);
+      try {
+        window.speechSynthesis?.cancel();
+      } catch {
+        // ignore
       }
+
       const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
+      const audio = new Audio();
       audio.preload = 'auto';
+      audio.src = url;
       audioRef.current = audio;
-      audio.onended = () => resolve(true);
-      audio.onerror = () => reject(new Error('Audio playback failed'));
-      const play = audio.play();
-      if (play?.catch) play.catch(reject);
+
+      let settled = false;
+      const finish = (ok, err) => {
+        if (settled) return;
+        settled = true;
+        if (!ok) URL.revokeObjectURL(url);
+        if (ok) resolve(true);
+        else reject(err || new Error('Audio playback failed'));
+      };
+
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        finish(true);
+      };
+      audio.onerror = () => finish(false);
+
+      const start = () => {
+        audio.currentTime = 0;
+        const play = audio.play();
+        if (play?.catch) play.catch((err) => finish(false, err));
+      };
+
+      // Wait until the clip is buffered enough — avoids the first-tap glitch
+      if (audio.readyState >= 3) start();
+      else {
+        audio.addEventListener('canplaythrough', start, { once: true });
+        audio.load();
+      }
     } catch (err) {
       reject(err);
     }
@@ -90,6 +136,7 @@ export function useSpeech() {
   const cacheRef = useRef(new Map());
   const inflightRef = useRef(new Map());
   const openaiOkRef = useRef(false);
+  const speakGenRef = useRef(0);
 
   useEffect(() => {
     if (!('speechSynthesis' in window)) return undefined;
@@ -154,24 +201,25 @@ export function useSpeech() {
       if (mutedRef.current) return;
       if (typeof window === 'undefined') return;
 
+      const gen = ++speakGenRef.current;
       const useOpenAI =
         preferOpenAI() && !preferBrowser() && openaiOkRef.current && enginePref !== 'browser';
 
-      if (useOpenAI) {
-        // Instant path: already warmed
-        if (cacheRef.current.has(word)) {
-          try {
-            await playBlob(cacheRef.current.get(word), audioRef);
-            return;
-          } catch {
-            // fall through
-          }
-        }
+      // Effect first, then voice — avoids the crunch/slurp + speech smear
+      await wait(SPEECH_START_DELAY_MS);
+      if (gen !== speakGenRef.current || mutedRef.current) return;
 
-        // Not ready yet — speak immediately with device voice, warm cache in background
-        speakBrowser(word, voiceRef);
-        ensureCached(word).catch(() => {});
-        return;
+      if (useOpenAI) {
+        try {
+          const blob = await ensureCached(word);
+          if (gen !== speakGenRef.current || mutedRef.current) return;
+          await playBlob(blob, audioRef);
+          return;
+        } catch {
+          if (gen !== speakGenRef.current || mutedRef.current) return;
+          speakBrowser(word, voiceRef);
+          return;
+        }
       }
 
       speakBrowser(word, voiceRef);
@@ -183,14 +231,13 @@ export function useSpeech() {
     setMuted((prev) => {
       const next = !prev;
       if (next) {
+        speakGenRef.current += 1;
         try {
           window.speechSynthesis?.cancel();
         } catch {
           // ignore
         }
-        if (audioRef.current) {
-          audioRef.current.pause();
-        }
+        stopAudio(audioRef);
       }
       return next;
     });

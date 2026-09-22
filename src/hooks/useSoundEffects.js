@@ -11,6 +11,19 @@ function ensureContext(ref) {
   return ref.current;
 }
 
+// Priming a silent buffer avoids the first-interaction audio crackle on some browsers
+function primeOutput(ctx) {
+  try {
+    const buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.connect(ctx.destination);
+    src.start(0);
+  } catch {
+    // ignore
+  }
+}
+
 function noiseBuffer(ctx, seconds) {
   const length = Math.max(1, Math.floor(ctx.sampleRate * seconds));
   const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
@@ -58,24 +71,24 @@ function noiseBurst(ctx, { duration, volume, delay = 0, type = 'bandpass', freq 
 
 function crunch(ctx) {
   // Chewy crackle: a few sharp noise bites
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 4; i++) {
     noiseBurst(ctx, {
-      duration: 0.045,
-      volume: 0.28 - i * 0.03,
-      delay: i * 0.055,
+      duration: 0.04,
+      volume: 0.16 - i * 0.02,
+      delay: i * 0.05,
       freq: 900 + i * 350,
-      Q: 2.5,
+      Q: 2.2,
     });
   }
-  tone(ctx, { freq: 180, endFreq: 90, duration: 0.12, type: 'triangle', volume: 0.06, delay: 0.02 });
+  tone(ctx, { freq: 180, endFreq: 90, duration: 0.1, type: 'triangle', volume: 0.04, delay: 0.02 });
 }
 
 function slurp(ctx) {
   // Wet sip: descending whoosh + bubbly noise
-  noiseBurst(ctx, { duration: 0.35, volume: 0.2, delay: 0, type: 'lowpass', freq: 900, Q: 0.7 });
-  noiseBurst(ctx, { duration: 0.22, volume: 0.14, delay: 0.08, type: 'bandpass', freq: 1400, Q: 1.2 });
-  tone(ctx, { freq: 420, endFreq: 140, duration: 0.32, type: 'sine', volume: 0.09, delay: 0 });
-  tone(ctx, { freq: 260, endFreq: 90, duration: 0.28, type: 'triangle', volume: 0.05, delay: 0.05 });
+  noiseBurst(ctx, { duration: 0.28, volume: 0.12, delay: 0, type: 'lowpass', freq: 900, Q: 0.7 });
+  noiseBurst(ctx, { duration: 0.18, volume: 0.08, delay: 0.08, type: 'bandpass', freq: 1400, Q: 1.2 });
+  tone(ctx, { freq: 420, endFreq: 140, duration: 0.26, type: 'sine', volume: 0.06, delay: 0 });
+  tone(ctx, { freq: 260, endFreq: 90, duration: 0.22, type: 'triangle', volume: 0.035, delay: 0.05 });
 }
 
 function more(ctx) {
@@ -127,7 +140,8 @@ export function useSoundEffects({ mutedRef }) {
   const ctxRef = useRef(null);
 
   const unlock = useCallback(() => {
-    ensureContext(ctxRef);
+    const ctx = ensureContext(ctxRef);
+    if (ctx) primeOutput(ctx);
   }, []);
 
   const playEffect = useCallback(
@@ -136,10 +150,11 @@ export function useSoundEffects({ mutedRef }) {
       const ctx = ensureContext(ctxRef);
       if (!ctx) return;
       try {
+        primeOutput(ctx);
         const fx = EFFECTS[buttonId];
         if (fx) fx(ctx);
         else {
-          tone(ctx, { freq: 620, endFreq: 220, duration: 0.1, volume: 0.12 });
+          tone(ctx, { freq: 620, endFreq: 220, duration: 0.1, volume: 0.1 });
         }
       } catch {
         // ignore
