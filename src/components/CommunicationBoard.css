@@ -1,0 +1,279 @@
+:root {
+  --bg: #fffcf5;
+  --ink: #2b2438;
+  --ink-soft: #5a5268;
+  --surface: #ffffff;
+  --ring: rgba(43, 36, 56, 0.08);
+
+  --eat: #ff8a3d;
+  --eat-ink: #4a2600;
+  --drink: #2fa0e0;
+  --drink-ink: #04283a;
+  --more: #45b37e;
+  --more-ink: #05301e;
+  --done: #e85d5d;
+  --done-ink: #430000;
+  --play: #9b6bd1;
+  --play-ink: #2a1245;
+  --help: #f2b705;
+  --help-ink: #402c00;
+  --diaper: #2fbfa0;
+  --diaper-ink: #02332a;
+  --hug: #f2679a;
+  --hug-ink: #440620;
+}
+
+.app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+  gap: 10px;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+/* top bar */
+.topbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 40px;
+}
+.brand {
+  font-family: 'Baloo 2', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.2px;
+}
+.icon-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: none;
+  background: var(--surface);
+  box-shadow: 0 2px 8px var(--ring);
+  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--ink);
+  transition: transform 0.12s ease;
+}
+.icon-btn:active {
+  transform: scale(0.9);
+}
+.topbar-right {
+  display: flex;
+  gap: 8px;
+}
+
+/* confirmation banner */
+.confirm {
+  flex: 0 0 auto;
+  align-self: center;
+  max-width: 100%;
+  padding: 10px 22px;
+  border-radius: 999px;
+  font-family: 'Baloo 2', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 1.4rem;
+  color: #fff;
+  background: var(--ink-soft);
+  opacity: 0;
+  transform: translateY(-14px) scale(0.9);
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.confirm.show {
+  animation: confirmPop 2.1s ease forwards;
+}
+@keyframes confirmPop {
+  0% {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.85);
+  }
+  12% {
+    opacity: 1;
+    transform: translateY(0) scale(1.04);
+  }
+  20% {
+    transform: translateY(0) scale(1);
+  }
+  82% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+}
+
+/* board */
+.board {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: 1fr;
+  gap: 12px;
+  min-height: 0;
+}
+@media (max-width: 720px), (max-aspect-ratio: 1/1) {
+  .board {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.cell {
+  border: none;
+  border-radius: 26px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--cell-ink);
+  background: var(--cell-color);
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.12), 0 10px 18px rgba(0, 0, 0, 0.1);
+  transition: transform 0.09s ease, box-shadow 0.09s ease, filter 0.09s ease;
+  padding: 6px;
+  min-height: 0;
+  min-width: 0;
+}
+.cell .emoji {
+  font-size: min(11vw, 11vh, 4.6rem);
+  line-height: 1;
+}
+.cell .label {
+  font-family: 'Baloo 2', system-ui, sans-serif;
+  font-weight: 800;
+  font-size: min(6vw, 5vh, 2rem);
+  line-height: 1.05;
+  text-align: center;
+}
+.cell:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.1);
+  filter: brightness(1.06);
+}
+.cell.pulse {
+  animation: cellPulse 0.5s ease;
+}
+@keyframes cellPulse {
+  0% {
+    filter: brightness(1);
+  }
+  35% {
+    filter: brightness(1.28) saturate(1.15);
+  }
+  100% {
+    filter: brightness(1);
+  }
+}
+
+.cell.eat {
+  --cell-color: var(--eat);
+  --cell-ink: var(--eat-ink);
+}
+.cell.drink {
+  --cell-color: var(--drink);
+  --cell-ink: var(--drink-ink);
+}
+.cell.more {
+  --cell-color: var(--more);
+  --cell-ink: var(--more-ink);
+}
+.cell.done {
+  --cell-color: var(--done);
+  --cell-ink: var(--done-ink);
+}
+.cell.play {
+  --cell-color: var(--play);
+  --cell-ink: var(--play-ink);
+}
+.cell.help {
+  --cell-color: var(--help);
+  --cell-ink: var(--help-ink);
+}
+.cell.diaper {
+  --cell-color: var(--diaper);
+  --cell-ink: var(--diaper-ink);
+}
+.cell.hug {
+  --cell-color: var(--hug);
+  --cell-ink: var(--hug-ink);
+}
+
+.cell:focus-visible {
+  outline: 4px solid var(--ink);
+  outline-offset: 3px;
+}
+
+/* how-to modal */
+.modal-back {
+  position: fixed;
+  inset: 0;
+  background: rgba(43, 36, 56, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 20;
+}
+.modal {
+  background: var(--surface);
+  border-radius: 22px;
+  max-width: 420px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 24px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+}
+.modal h2 {
+  font-family: 'Baloo 2', system-ui, sans-serif;
+  margin: 0 0 10px;
+  font-size: 1.4rem;
+}
+.modal p {
+  margin: 0 0 12px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  font-size: 0.98rem;
+}
+.modal .steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: 'Baloo 2', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  background: var(--bg);
+  border-radius: 14px;
+  padding: 14px 10px;
+  margin: 0 0 14px;
+  flex-wrap: wrap;
+}
+.modal .steps span.arrow {
+  color: var(--ink-soft);
+  font-weight: 400;
+}
+.modal button.close {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 14px;
+  background: var(--ink);
+  color: #fff;
+  font-family: 'Nunito', system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 1rem;
+  cursor: pointer;
+}
