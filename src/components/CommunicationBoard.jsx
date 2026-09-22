@@ -5,8 +5,8 @@ import { useSoundEffects } from '../hooks/useSoundEffects.js';
 import './CommunicationBoard.css';
 
 export default function CommunicationBoard() {
-  const { speak, muted, toggleMute, mutedRef, openaiAvailable } = useSpeech();
-  const { playTap, unlock } = useSoundEffects({ mutedRef });
+  const { speak, muted, toggleMute, mutedRef, openaiAvailable, prefetch } = useSpeech();
+  const { playEffect, unlock } = useSoundEffects({ mutedRef });
   const [confirmation, setConfirmation] = useState(null); // the button object currently confirming
   const [confirmKey, setConfirmKey] = useState(0); // bump to force the pop animation to restart
   const [pulseId, setPulseId] = useState(null);
@@ -15,7 +15,7 @@ export default function CommunicationBoard() {
 
   const handleTap = (button) => {
     unlock();
-    playTap();
+    playEffect(button.id);
     speak(button.word);
 
     setConfirmation(button);
@@ -27,6 +27,14 @@ export default function CommunicationBoard() {
   };
 
   useEffect(() => () => clearTimeout(hideTimer.current), []);
+
+  // Warm OpenAI audio for every button so taps speak instantly after load
+  useEffect(() => {
+    if (!openaiAvailable) return undefined;
+    const words = BOARD_BUTTONS.map((b) => b.word);
+    prefetch(words);
+    return undefined;
+  }, [openaiAvailable, prefetch]);
 
   return (
     <div className="app">

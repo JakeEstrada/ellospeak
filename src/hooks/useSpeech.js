@@ -25,12 +25,11 @@ function pickVoice() {
 function speakBrowser(word, voiceRef) {
   if (!('speechSynthesis' in window)) return false;
   try {
-    // Chrome can leave speechSynthesis paused/stuck; nudge it awake.
     window.speechSynthesis.cancel();
     window.speechSynthesis.resume?.();
 
     const utterance = new SpeechSynthesisUtterance(word);
-    utterance.rate = 0.88;
+    utterance.rate = 0.92;
     utterance.pitch = 1.08;
     utterance.lang = 'en-US';
     const voice = voiceRef.current || pickVoice();
@@ -45,26 +44,17 @@ function speakBrowser(word, voiceRef) {
   }
 }
 
-async function speakOpenAI(word, audioRef, cacheRef) {
-  const cached = cacheRef.current.get(word);
-  if (cached) {
-    return playBlob(cached, audioRef);
-  }
-
+async function fetchSpeechBlob(word) {
   const res = await fetch('/api/tts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text: word }),
   });
-
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
     throw new Error(detail || `TTS failed (${res.status})`);
   }
-
-  const blob = await res.blob();
-  cacheRef.current.set(word, blob);
-  return playBlob(blob, audioRef);
+  return res.blob();
 }
 
 function playBlob(blob, audioRef) {
@@ -72,20 +62,17 @@ function playBlob(blob, audioRef) {
     try {
       if (audioRef.current) {
         audioRef.current.pause();
-        URL.revokeObjectURL(audioRef.current.src);
+        const prev = audioRef.current.src;
+        if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev);
       }
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
+      audio.preload = 'auto';
       audioRef.current = audio;
-      audio.onended = () => {
-        URL.revokeObjectURL(url);
-        resolve(true);
-      };
-      audio.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error('Audio playback failed'));
-      };
-      audio.play().catch(reject);
+      audio.onended = () => resolve(true);
+      audio.onerror = () => reject(new Error('Audio playback failed'));
+      const play = audio.play();
+      if (play?.catch) play.catch(reject);
     } catch (err) {
       reject(err);
     }
@@ -101,6 +88,7 @@ export function useSpeech() {
   const voiceRef = useRef(null);
   const audioRef = useRef(null);
   const cacheRef = useRef(new Map());
+  const inflightRef = useRef(new Map());
   const openaiOkRef = useRef(false);
 
   useEffect(() => {
@@ -133,24 +121,63 @@ export function useSpeech() {
     };
   }, []);
 
-  const speak = useCallback(async (word) => {
-    if (mutedRef.current) return;
-    if (typeof window === 'undefined') return;
+  const ensureCached = useCallback(async (word) => {
+    if (cacheRef.current.has(word)) return cacheRef.current.get(word);
+    if (inflightRef.current.has(word)) return inflightRef.current.get(word);
 
-    const useOpenAI =
-      preferOpenAI() && !preferBrowser() && openaiOkRef.current && enginePref !== 'browser';
+    const pending = fetchSpeechBlob(word)
+      .then((blob) => {
+        cacheRef.current.set(word, blob);
+        inflightRef.current.delete(word);
+        return blob;
+      })
+      .catch((err) => {
+        inflightRef.current.delete(word);
+        throw err;
+      });
 
-    if (useOpenAI) {
-      try {
-        await speakOpenAI(word, audioRef, cacheRef);
-        return;
-      } catch {
-        // Fall through to free browser speech
-      }
-    }
-
-    speakBrowser(word, voiceRef);
+    inflightRef.current.set(word, pending);
+    return pending;
   }, []);
+
+  const prefetch = useCallback(
+    async (words = []) => {
+      if (!openaiOkRef.current || preferBrowser()) return;
+      const unique = [...new Set(words.filter(Boolean))];
+      await Promise.allSettled(unique.map((word) => ensureCached(word)));
+    },
+    [ensureCached]
+  );
+
+  const speak = useCallback(
+    async (word) => {
+      if (mutedRef.current) return;
+      if (typeof window === 'undefined') return;
+
+      const useOpenAI =
+        preferOpenAI() && !preferBrowser() && openaiOkRef.current && enginePref !== 'browser';
+
+      if (useOpenAI) {
+        // Instant path: already warmed
+        if (cacheRef.current.has(word)) {
+          try {
+            await playBlob(cacheRef.current.get(word), audioRef);
+            return;
+          } catch {
+            // fall through
+          }
+        }
+
+        // Not ready yet — speak immediately with device voice, warm cache in background
+        speakBrowser(word, voiceRef);
+        ensureCached(word).catch(() => {});
+        return;
+      }
+
+      speakBrowser(word, voiceRef);
+    },
+    [ensureCached]
+  );
 
   const toggleMute = useCallback(() => {
     setMuted((prev) => {
@@ -169,5 +196,5 @@ export function useSpeech() {
     });
   }, []);
 
-  return { speak, muted, toggleMute, mutedRef, openaiAvailable };
+  return { speak, muted, toggleMute, mutedRef, openaiAvailable, prefetch };
 }
