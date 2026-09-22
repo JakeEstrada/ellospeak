@@ -28,12 +28,19 @@ export default function CommunicationBoard() {
 
   useEffect(() => () => clearTimeout(hideTimer.current), []);
 
-  // Warm OpenAI audio for every button so taps speak instantly after load
+  // Warm OpenAI audio one-by-one so later buttons (like Hug) aren't starved by parallel rate limits
   useEffect(() => {
     if (!openaiAvailable) return undefined;
-    const words = BOARD_BUTTONS.map((b) => b.word);
-    prefetch(words);
-    return undefined;
+    let cancelled = false;
+    (async () => {
+      for (const button of BOARD_BUTTONS) {
+        if (cancelled) break;
+        await prefetch([button.word]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [openaiAvailable, prefetch]);
 
   return (

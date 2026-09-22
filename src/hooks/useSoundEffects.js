@@ -120,9 +120,11 @@ function diaper(ctx) {
 }
 
 function hug(ctx) {
-  tone(ctx, { freq: 330, endFreq: 440, duration: 0.22, type: 'sine', volume: 0.1, delay: 0 });
-  tone(ctx, { freq: 440, endFreq: 554, duration: 0.28, type: 'sine', volume: 0.09, delay: 0.12 });
-  tone(ctx, { freq: 554, duration: 0.2, type: 'triangle', volume: 0.07, delay: 0.28 });
+  // Soft heart “pop” + warm rising tones so Hug is clearly audible
+  noiseBurst(ctx, { duration: 0.08, volume: 0.1, delay: 0, type: 'bandpass', freq: 700, Q: 1.4 });
+  tone(ctx, { freq: 392, endFreq: 523, duration: 0.16, type: 'sine', volume: 0.14, delay: 0.02 });
+  tone(ctx, { freq: 523, endFreq: 659, duration: 0.2, type: 'sine', volume: 0.12, delay: 0.12 });
+  tone(ctx, { freq: 784, duration: 0.22, type: 'triangle', volume: 0.1, delay: 0.26 });
 }
 
 const EFFECTS = {

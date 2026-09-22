@@ -93,12 +93,16 @@ function playBlob(blob, audioRef) {
       audioRef.current = audio;
 
       let settled = false;
+      let started = false;
+
       const finish = (ok, err) => {
         if (settled) return;
         settled = true;
-        if (!ok) URL.revokeObjectURL(url);
         if (ok) resolve(true);
-        else reject(err || new Error('Audio playback failed'));
+        else {
+          URL.revokeObjectURL(url);
+          reject(err || new Error('Audio playback failed'));
+        }
       };
 
       audio.onended = () => {
@@ -108,17 +112,25 @@ function playBlob(blob, audioRef) {
       audio.onerror = () => finish(false);
 
       const start = () => {
-        audio.currentTime = 0;
+        if (started || settled) return;
+        started = true;
+        try {
+          audio.currentTime = 0;
+        } catch {
+          // ignore
+        }
         const play = audio.play();
-        if (play?.catch) play.catch((err) => finish(false, err));
+        if (play?.catch) {
+          play.catch((err) => finish(false, err));
+        }
       };
 
-      // Wait until the clip is buffered enough — avoids the first-tap glitch
-      if (audio.readyState >= 3) start();
-      else {
-        audio.addEventListener('canplaythrough', start, { once: true });
-        audio.load();
-      }
+      // Prefer buffered start, but don't hang if canplaythrough never fires (common with short blobs)
+      audio.addEventListener('loadeddata', start, { once: true });
+      audio.addEventListener('canplay', start, { once: true });
+      audio.addEventListener('canplaythrough', start, { once: true });
+      audio.load();
+      setTimeout(start, 120);
     } catch (err) {
       reject(err);
     }
