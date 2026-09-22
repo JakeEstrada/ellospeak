@@ -33,13 +33,17 @@ Useful settings (see `.env.example` for full notes):
 
 | Variable | Purpose |
 | --- | --- |
-| `OPENAI_API_KEY` | Enables cloud TTS via a local `/api/tts` proxy |
+| `OPENAI_API_KEY` | Enables cloud TTS via `/api/tts` (local Vite proxy + Vercel serverless) |
 | `OPENAI_TTS_VOICE` | e.g. `shimmer`, `nova`, `coral`, `sage` |
 | `OPENAI_TTS_MODEL` | Prefer `gpt-4o-mini-tts` for style instructions |
 | `OPENAI_TTS_INSTRUCTIONS` | How the voice should sound (kid-friendly tone) |
 | `VITE_TTS_ENGINE` | `auto` (default), `browser`, or `openai` |
 
 OpenAI does not offer true child character voices. For that, a provider like ElevenLabs would be needed.
+
+### Deploy on Vercel
+
+Import the GitHub repo, keep the Vite defaults, and add the same env vars under **Environment Variables** (at least `OPENAI_API_KEY`). The `/api/tts` serverless function runs in production so cloud speech works on the live URL.
 
 ## Customize the board
 
@@ -57,4 +61,4 @@ Run any vocabulary or layout changes past the child’s speech-language patholog
 
 ## Stack
 
-React + Vite. Speech uses the Web Speech API by default, or OpenAI audio when configured.
+React + Vite. Speech uses the Web Speech API by default, or OpenAI audio via `/api/tts` (Vite middleware locally, Vercel serverless in production).
